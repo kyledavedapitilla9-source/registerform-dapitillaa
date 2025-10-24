@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Student Register</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      background: url(https://live.staticflickr.com/6005/5935972383_a44f1d3590_c.jpg) no-repeat center center fixed;
+      background-size: cover;
+      font-family: 'Inter', sans-serif;
+      min-height: 100vh;
+    }
+
+    .table-fixed td, .table-fixed th { 
+      word-wrap: break-word; 
+    }
+
+    /* 🌫️ Frosted glass style for form and table */
+    .glass-box {
+      backdrop-filter: blur(12px) saturate(160%);
+      -webkit-backdrop-filter: blur(12px) saturate(160%);
+      background-color: rgba(255, 255, 255, 0.25);
+      border-radius: 1rem;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+    }
+
+    /* Inputs & buttons */
+    input, button {
+      backdrop-filter: blur(4px);
+    }
+
+    button {
+      transition: 0.3s ease;
+    }
+
+    button:hover {
+      transform: scale(1.05);
+      filter: brightness(1.1);
+    }
+
+    h1, h2, p {
+      color: white;
+      text-shadow: 0 1px 4px rgba(0, 0, 0, 0.7);
+    }
+  </style>
+</head>
+<body>
+  <div class="overlay py-10">
+    <div class="max-w-xl mx-auto">
+      <header class="mb-4 text-center">
+        <h1 class="text-xl font-bold">Student Register</h1>
+        <p class="text-sm">Register students, view who registered, and manage records locally.</p>
+      </header>
+
+      <!-- Register Form -->
+      <section class="glass-box p-4 mb-5">
+        <h2 class="font-semibold mb-2 text-center">Register a Student</h2>
+        <form id="registerForm" class="grid grid-cols-1 gap-3">
+          <div>
+            <label class="text-sm text-white">Full name</label>
+            <input required id="name" class="w-full border rounded px-3 py-2 bg-white/70" placeholder="Juan Dela Cruz" />
+          </div>
+          <div>
+            <label class="text-sm text-white">Student ID</label>
+            <input required id="studentId" class="w-full border rounded px-3 py-2 bg-white/70" placeholder="2025-001" />
+          </div>
+          <div>
+            <label class="text-sm text-white">Email</label>
+            <input id="email" type="email" class="w-full border rounded px-3 py-2 bg-white/70" placeholder="juan@example.com" />
+          </div>
+          <div>
+            <label class="text-sm text-white">Course / Grade</label>
+            <input id="course" class="w-full border rounded px-3 py-2 bg-white/70" placeholder="B.I.T. - Computer Technology" />
+          </div>
+          <div>
+            <label class="text-sm text-white">Registered by</label>
+            <input id="registeredBy" class="w-full border rounded px-3 py-2 bg-white/70" placeholder="Website / Admin / Teacher" />
+            <p class="text-xs text-gray-100 mt-1">If empty, defaults to <em>Website</em>.</p>
+          </div>
+          <div class="flex gap-2 mt-2 justify-center">
+            <button type="submit" class="bg-blue-600/80 text-white px-4 py-2 rounded">Register</button>
+            <button id="resetForm" type="button" class="bg-gray-300/60 text-black px-4 py-2 rounded">Clear</button>
+          </div>
+        </form>
+      </section>
+
+      <!-- View Register Section -->
+      <section class="glass-box p-4">
+        <h2 class="font-semibold mb-3 text-center">View Register / Who Registered</h2>
+        <div class="flex flex-col gap-2 items-center">
+          <input id="search" placeholder="Search name, ID, or course..." class="border rounded px-3 py-2 w-full bg-white/70" />
+          <div class="flex gap-2 justify-center">
+            <button id="exportCsv" class="bg-green-600/80 text-white px-3 py-2 rounded">Export CSV</button>
+            <button id="clearAll" class="bg-red-500/80 text-white px-3 py-2 rounded">Clear All</button>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto mt-3">
+          <table class="w-full table-fixed text-left text-sm text-white">
+            <thead class="text-gray-200">
+              <tr>
+                <th class="w-36 p-2">Timestamp</th>
+                <th class="w-32 p-2">Student ID</th>
+                <th class="p-2">Full name</th>
+                <th class="p-2">Course</th>
+                <th class="p-2">Email</th>
+                <th class="p-2">Registered by</th>
+                <th class="w-20 p-2">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="registerTableBody" class="divide-y divide-gray-300/40"></tbody>
+          </table>
+        </div>
+        <p id="emptyMessage" class="text-sm text-gray-100 mt-3 text-center">No registrations yet.</p>
+      </section>
+
+      <footer class="text-xs text-gray-200 mt-4 text-center drop-shadow">
+        Data is stored locally (in your browser). Export CSV to back up records.
+      </footer>
+    </div>
+  </div>
+
+  <script>
+    const STORAGE_KEY = 'student_register_entries_v1';
+
+    function nowISO() { return new Date().toLocaleString(); }
+    function loadEntries() {
+      try { const raw = localStorage.getItem(STORAGE_KEY); return raw ? JSON.parse(raw) : []; } catch (e) { return []; }
+    }
+    function saveEntries(entries) { localStorage.setItem(STORAGE_KEY, JSON.stringify(entries)); }
+
+    function renderTable(filter = '') {
+      const tbody = document.getElementById('registerTableBody');
+      const emptyMessage = document.getElementById('emptyMessage');
+      tbody.innerHTML = '';
+      const entries = loadEntries();
+      const f = filter.trim().toLowerCase();
+      const filtered = entries.filter(e => {
+        if (!f) return true;
+        return (e.name || '').toLowerCase().includes(f)
+          || (e.studentId || '').toLowerCase().includes(f)
+          || (e.course || '').toLowerCase().includes(f)
+          || (e.email || '').toLowerCase().includes(f)
+          || (e.registeredBy || '').toLowerCase().includes(f);
+      });
+
+      emptyMessage.style.display = filtered.length === 0 ? 'block' : 'none';
+
+      filtered.reverse().forEach(e => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td class="p-2 text-xs">${escapeHtml(e.timestamp)}</td>
+          <td class="p-2 text-xs">${escapeHtml(e.studentId)}</td>
+          <td class="p-2">${escapeHtml(e.name)}</td>
+          <td class="p-2">${escapeHtml(e.course)}</td>
+          <td class="p-2">${escapeHtml(e.email || '-') }</td>
+          <td class="p-2">${escapeHtml(e.registeredBy)}</td>
+          <td class="p-2"><button data-idx="${e._id}" class="deleteBtn text-xs bg-red-200/60 text-red-700 px-2 py-1 rounded">Delete</button></td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      document.querySelectorAll('.deleteBtn').forEach(btn => {
+        btn.addEventListener('click', () => deleteEntry(btn.getAttribute('data-idx')));
+      });
+    }
+
+    function escapeHtml(s) { return s ? String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;') : ''; }
+    function addEntry(entry) { const entries = loadEntries(); entries.push(entry); saveEntries(entries); renderTable(document.getElementById('search').value); }
+    function deleteEntry(id) { let entries = loadEntries(); entries = entries.filter(e => e._id !== id); saveEntries(entries); renderTable(document.getElementById('search').value); }
+    function clearAll() { if (!confirm('Clear all registrations?')) return; localStorage.removeItem(STORAGE_KEY); renderTable(); }
+    function exportCsv() {
+      const entries = loadEntries();
+      if (!entries.length) { alert('No entries to export'); return; }
+      const header = ['timestamp','studentId','name','course','email','registeredBy'];
+      const rows = [header.join(',')];
+      entries.forEach(e => rows.push([e.timestamp,e.studentId,e.name,e.course,e.email||'',e.registeredBy].map(c => '"'+String(c).replace(/"/g,'""')+'"').join(',')));
+      const csv = rows.join('\n');
+      const blob = new Blob([csv],{type:'text/csv'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href=url;a.download='student_register.csv';a.click();URL.revokeObjectURL(url);
+    }
+
+    function uid() { return 'id-'+Math.random().toString(36).slice(2,9); }
+
+    document.getElementById('registerForm').addEventListener('submit', ev => {
+      ev.preventDefault();
+      const name = nameField.value.trim();
+      const studentId = studentIdField.value.trim();
+      const email = emailField.value.trim();
+      const course = courseField.value.trim();
+      const registeredBy = registeredByField.value.trim() || 'Website';
+      if (!name || !studentId) return alert('Please provide a name and student ID.');
+      addEntry({_id: uid(), timestamp: nowISO(), name, studentId, email, course, registeredBy});
+      registerForm.reset();
+      registeredByField.value = registeredBy;
+      alert('Registered: '+name);
+    });
+
+    const nameField=document.getElementById('name');
+    const studentIdField=document.getElementById('studentId');
+    const emailField=document.getElementById('email');
+    const courseField=document.getElementById('course');
+    const registeredByField=document.getElementById('registeredBy');
+    const registerForm=document.getElementById('registerForm');
+
+    document.getElementById('resetForm').addEventListener('click',()=>registerForm.reset());
+    document.getElementById('search').addEventListener('input',e=>renderTable(e.target.value));
+    document.getElementById('exportCsv').addEventListener('click',exportCsv);
+    document.getElementById('clearAll').addEventListener('click',clearAll);
+
+    renderTable();
+  </script>
+</body>
+</html>
